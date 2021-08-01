@@ -28,9 +28,10 @@ func TestPersistInputValidations(t *testing.T) {
 	require.NoError(t, collection.Drop(testCtx))
 
 	for name, s := range map[string]persistTestScenario{
-		"empty model":           newPersistTestScenario(true, "", "", 0, 0),
-		"missing entity":        newPersistTestScenario(true, "", "static_period", 0, 0),
-		"missing static period": newPersistTestScenario(true, "entity", "", 0, 0),
+		"empty model":           newPersistTestScenario("", true, "", "", 0, 0),
+		"missing entity":        newPersistTestScenario("", true, "", "static_period", 0, 0),
+		"missing static period": newPersistTestScenario("", true, "entity", "", 0, 0),
+		"valid model with invalid timestamp in sample": newPersistTestScenario("", true, "entity", "static_period", 0, 0, invalidTestSamples...),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Helper()
@@ -50,8 +51,6 @@ func TestPersistInputValidations(t *testing.T) {
 }
 
 func TestPersistDBValidations(t *testing.T) {
-	t.Skip("WIP")
-
 	var dbi = serverdb.TestDBInstance{}
 	testCtx, testCtxCancel, testDBClient, testDBClientDisconnect, err := dbi.GetTestDB()
 	require.NoError(t, err)
@@ -67,22 +66,25 @@ func TestPersistDBValidations(t *testing.T) {
 	collection := testDB.Collection(serverdb.DBCollection)
 	require.NoError(t, collection.Drop(testCtx))
 
-	for name, s := range map[string]persistTestScenario{
-		"valid model":                                newPersistTestScenario(false, "entity", "static_period", 0, 0),
-		"model already exists":                       newPersistTestScenario(true, "entity", "static_period", 0, 0),
-		"another valid model":                        newPersistTestScenario(false, "entity", "static_period_2", 0, 0),
-		"valid model with sample":                    newPersistTestScenario(false, "entity", "static_period", 0, 0, testSamples1...),
-		"invalid model with existing sample":         newPersistTestScenario(true, "entity", "static_period", 0, 0, testSamples1...),
-		"valid model with samples":                   newPersistTestScenario(false, "entity", "static_period", 0, 0, testSamples2...),
-		"invalid model with existing samples":        newPersistTestScenario(true, "entity", "static_period", 0, 0, testSamples2...),
-		"invalid model with duplicate input samples": newPersistTestScenario(true, "entity", "static_period", 0, 0, testSamples3...),
+	// execute in sequence
+	for i, c := range []struct {
+		scenario persistTestScenario
+	}{
+		{scenario: newPersistTestScenario("valid model", false, "entity", "static_period", 0, 0)},
+		{scenario: newPersistTestScenario("model already exists", true, "entity", "static_period", 0, 0)},
+		{scenario: newPersistTestScenario("another valid model", false, "entity", "static_period_2", 0, 0)},
+		{scenario: newPersistTestScenario("valid model with sample", false, "entity", "static_period", 0, 0, testSamples1...)},
+		{scenario: newPersistTestScenario("invalid model with existing sample", true, "entity", "static_period", 0, 0, testSamples1...)},
+		{scenario: newPersistTestScenario("valid model with samples", false, "entity", "static_period", 0, 0, testSamples2...)},
+		{scenario: newPersistTestScenario("model with existing samples", true, "entity", "static_period", 0, 0, testSamples2...)},
+		{scenario: newPersistTestScenario("model with duplicate input samples", true, "entity", "static_period", 0, 0, testDuplicteSamples...)},
 	} {
 		var (
-			err    = svc.Persist(s.dp)
-			errMsg = fmt.Sprintf("failed at scenario '%s'", name)
+			err    = svc.Persist(c.scenario.dp)
+			errMsg = fmt.Sprintf("failed at scenario %d:%s", (i + 1), c.scenario.desc)
 		)
 		switch {
-		case s.expectErr:
+		case c.scenario.expectErr:
 			assert.Error(t, err, errMsg)
 		default:
 			assert.NoError(t, err, errMsg)

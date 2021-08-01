@@ -7,6 +7,13 @@ import (
 )
 
 var (
+	invalidTestSamples = apimodel.Samples{
+		{
+			Timestamp: -1,
+			Value:     1,
+		},
+	}
+
 	testSamples1 = apimodel.Samples{
 		{
 			Timestamp: 1,
@@ -25,7 +32,7 @@ var (
 		},
 	}
 
-	testSamples3 = apimodel.Samples{
+	testDuplicteSamples = apimodel.Samples{
 		{
 			Timestamp: 4,
 			Value:     4,
@@ -38,16 +45,19 @@ var (
 )
 
 type persistTestScenario struct {
+	desc      string
 	dp        apimodel.DataPoint
 	expectErr bool
 }
 
 func newPersistTestScenario(
+	desc string,
 	expectErr bool,
 	entity, period string,
-	start, end uint64,
+	start, end int64,
 	samples ...apimodel.Sample) persistTestScenario {
 	var s = persistTestScenario{
+		desc: desc,
 		dp: apimodel.DataPoint{
 			Entity:          entity,
 			StaticPeriod:    period,
@@ -64,7 +74,7 @@ func newPersistTestScenario(
 
 func givenDataPoint(
 	entity, period string,
-	start, end uint64,
+	start, end int64,
 	samples ...apimodel.Sample,
 ) apimodel.DataPoint {
 	dp := apimodel.DataPoint{
@@ -100,7 +110,7 @@ func givenBSON(dp apimodel.DataPoint) bson.D {
 
 func givenDPToBSON(
 	entity, period string,
-	start, end uint64,
+	start, end int64,
 	samples ...apimodel.Sample,
 ) bson.D {
 	return givenBSON(givenDataPoint(entity, period, start, end, samples...))

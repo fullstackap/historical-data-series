@@ -2,7 +2,7 @@ package db
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -41,7 +41,7 @@ func (s *dataPointService) Persist(dp apimodel.DataPoint) error {
 	var (
 		timestamps    = bson.A{}
 		samples       = bson.A{}
-		timestampsMap = make(map[uint64]int)
+		timestampsMap = make(map[int64]int)
 	)
 	for _, s := range dp.Samples {
 		timestamps = append(timestamps, s.Timestamp)
@@ -51,6 +51,10 @@ func (s *dataPointService) Persist(dp apimodel.DataPoint) error {
 			{"value", s.Value},
 		})
 
+		if s.Timestamp <= 0 {
+			return errors.Errorf("timestamp '%d' in not valid in input, must be greater or equal to 1", s.Timestamp)
+		}
+
 		timestampsMap[s.Timestamp]++
 		if timestampsMap[s.Timestamp] > 1 {
 			return errors.Errorf("detected duplicate timestamp '%d' in input", s.Timestamp)
@@ -58,11 +62,6 @@ func (s *dataPointService) Persist(dp apimodel.DataPoint) error {
 	}
 
 	var doc = bson.D{
-		{"entity", dp.Entity},
-		{"staticPeriod", dp.StaticPeriod},
-	}
-
-	doc = bson.D{
 		{"$or",
 			bson.A{
 				bson.D{
@@ -95,6 +94,8 @@ func (s *dataPointService) Persist(dp apimodel.DataPoint) error {
 		return errors.Wrapf(err, "failed at cursor.All")
 	}
 
+	fmt.Println("results", dps)
+
 	defer cursor.Close(s.ctx)
 
 	if len(dps) > 0 {
@@ -117,7 +118,7 @@ func (s *dataPointService) Persist(dp apimodel.DataPoint) error {
 
 	switch {
 	case len(dps) > 0 && len(dp.Samples) > 0:
-		log.Println("Updating record...")
+		fmt.Println("Updating record...")
 		// update record
 		var (
 			docFilters = bson.D{
@@ -148,7 +149,7 @@ func (s *dataPointService) Persist(dp apimodel.DataPoint) error {
 		// insert record
 		var bsonD bson.D
 		if len(dp.Samples) > 0 {
-			log.Println("Inserting record with samples...")
+			fmt.Println("Inserting record with samples...")
 
 			bsonD = bson.D{
 				{"entity", dp.Entity},
@@ -158,13 +159,13 @@ func (s *dataPointService) Persist(dp apimodel.DataPoint) error {
 				{"samples", samples},
 			}
 		} else {
-			log.Println("Inserting record without samples...")
+			fmt.Println("Inserting record without samples...")
 
 			bsonD = bson.D{
 				{"entity", dp.Entity},
 				{"staticPeriod", dp.StaticPeriod},
-				{"sampleStartTime", uint64(0)},
-				{"sampleEndTime", uint64(0)},
+				{"sampleStartTime", int64(0)},
+				{"sampleEndTime", int64(0)},
 				{"samples", bson.A{}},
 			}
 		}
@@ -181,6 +182,7 @@ func (s *dataPointService) Retrieve(filters apimodel.Filters) (dps []apimodel.Da
 	var (
 		pipeline        = make([]bson.M, 0)
 		matchStageParts = bson.M{}
+		matchStage      = bson.M{}
 		groupStage      = bson.M{}
 		limitStage      = bson.M{}
 		collection      = s.db.Collection(serverdb.DBCollection)
@@ -201,29 +203,47 @@ func (s *dataPointService) Retrieve(filters apimodel.Filters) (dps []apimodel.Da
 		matchStageParts["sampleEndTime"] = filters.End
 	}
 
-	matchStage := bson.M{"$match": matchStageParts}
+	if len(matchStageParts) > 0 {
+		matchStage = bson.M{"$match": matchStageParts}
+	}
 
-	if filters.From > 0 {
-		groupStage = bson.M{
-			"$addFields": bson.M{"samples": bson.M{
-				"$filter": bson.M{
-					"input": "$samples",
-					"as":    "samples",
-					"cond": bson.M{
-						"$gte": []interface{}{
-							"$$samples.timestamp", filters.From,
-						},
+	var from int64
+	switch {
+	case filters.From > 0:
+		from = filters.From
+	default:
+		from = 1
+	}
+
+	groupStage = bson.M{
+		"$addFields": bson.M{"samples": bson.M{
+			"$filter": bson.M{
+				"input": "$samples",
+				"as":    "samples",
+				"cond": bson.M{
+					"$gte": []interface{}{
+						"$$samples.timestamp", from,
 					},
-				}},
-			},
-		}
+				},
+			}},
+		},
 	}
 
-	if filters.From > 0 {
-		limitStage = bson.M{"$limit": filters.From}
+	if filters.Limit > 0 {
+		limitStage = bson.M{"$limit": filters.Limit}
 	}
 
-	pipeline = append(pipeline, matchStage, groupStage, limitStage)
+	if len(matchStage) > 0 {
+		pipeline = append(pipeline, matchStage)
+	}
+
+	if len(groupStage) > 0 {
+		pipeline = append(pipeline, groupStage)
+	}
+
+	if len(limitStage) > 0 {
+		pipeline = append(pipeline, limitStage)
+	}
 
 	cursor, err := collection.Aggregate(s.ctx, pipeline)
 	if err != nil {
