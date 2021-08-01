@@ -17,8 +17,6 @@ import (
 // TODO: add centralized unit test init db management
 // TODO: add transactions to write test data in unit tests
 // TODO: add api version control, enforcing both uri and headers requirements
-// TODO: add mutual exclusive locks for concurrent handler usage
-// TODO: add rate limit to allow up X simultaneous clients
 
 const (
 	serverHost             = "127.0.0.1"
