@@ -19,7 +19,7 @@ type DBInstance struct {
 func (d *DBInstance) GetDB() (
 	ctx context.Context,
 	client *mongo.Client,
-	disconnect func(),
+	disconnect func(client *mongo.Client),
 	err error,
 ) {
 	d.Lock()
@@ -38,7 +38,7 @@ func (d *DBInstance) GetDB() (
 		return nil, nil, nil, errors.Wrapf(err, "failed at mongo.Connect")
 	}
 
-	disconnect = func() {
+	disconnect = func(client *mongo.Client) {
 		if err := client.Disconnect(ctx); err != nil {
 			log.Fatal(err)
 		}

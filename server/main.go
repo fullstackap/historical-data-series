@@ -39,7 +39,7 @@ func main() {
 	}
 
 	// disconnect db client upon exit
-	defer dbClientDisconnect()
+	defer dbClientDisconnect(dbClient)
 
 	// setup env
 	var (
