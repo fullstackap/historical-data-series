@@ -94,8 +94,6 @@ func (s *dataPointService) Persist(dp apimodel.DataPoint) error {
 		return errors.Wrapf(err, "failed at cursor.All")
 	}
 
-	fmt.Println("results", dps)
-
 	defer cursor.Close(s.ctx)
 
 	if len(dps) > 0 {
@@ -118,7 +116,6 @@ func (s *dataPointService) Persist(dp apimodel.DataPoint) error {
 
 	switch {
 	case len(dps) > 0 && len(dp.Samples) > 0:
-		fmt.Println("Updating record...")
 		// update record
 		var (
 			docFilters = bson.D{
@@ -149,8 +146,6 @@ func (s *dataPointService) Persist(dp apimodel.DataPoint) error {
 		// insert record
 		var bsonD bson.D
 		if len(dp.Samples) > 0 {
-			fmt.Println("Inserting record with samples...")
-
 			bsonD = bson.D{
 				{"entity", dp.Entity},
 				{"staticPeriod", dp.StaticPeriod},
@@ -159,8 +154,6 @@ func (s *dataPointService) Persist(dp apimodel.DataPoint) error {
 				{"samples", samples},
 			}
 		} else {
-			fmt.Println("Inserting record without samples...")
-
 			bsonD = bson.D{
 				{"entity", dp.Entity},
 				{"staticPeriod", dp.StaticPeriod},

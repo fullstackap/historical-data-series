@@ -3,6 +3,7 @@ package http
 import (
 	"encoding/json"
 	"net/http"
+	"sync"
 
 	"github.com/gorilla/schema"
 	"github.com/pkg/errors"
@@ -13,6 +14,7 @@ import (
 var decoder = schema.NewDecoder()
 
 type Env struct {
+	sync.Mutex
 	DataPoints interface {
 		Persist(dp apimodel.DataPoint) error
 		Retrieve(filters apimodel.Filters) ([]apimodel.DataPoint, error)
@@ -20,6 +22,9 @@ type Env struct {
 }
 
 func (e *Env) PersistHandler(w http.ResponseWriter, r *http.Request) {
+	e.Lock()
+	defer e.Unlock()
+
 	var dp apimodel.DataPoint
 	if err := json.NewDecoder(r.Body).Decode(&dp); err != nil {
 		e.respondWithError(w, http.StatusBadRequest, err)
@@ -33,6 +38,9 @@ func (e *Env) PersistHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (e *Env) RetrieveHandler(w http.ResponseWriter, r *http.Request) {
+	e.Lock()
+	defer e.Unlock()
+
 	var (
 		params  = r.URL.Query()
 		filters apimodel.Filters
