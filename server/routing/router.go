@@ -9,12 +9,14 @@ import (
 	"historical-data-series/server/middleware"
 )
 
+const maxClients = 1
+
 func NewRouter(env *apihttp.Env) *mux.Router {
 	var router = mux.NewRouter()
 
 	// define handlers for endpoints
-	router.HandleFunc("/api/persist", env.PersistHandler).Methods("POST")
-	router.HandleFunc("/api/retrieve", env.RetrieveHandler).Methods("GET")
+	router.HandleFunc("/api/persist", middleware.LimitNumOfConcurrentClients(env.PersistHandler, maxClients)).Methods("POST")
+	router.HandleFunc("/api/retrieve", middleware.LimitNumOfConcurrentClients(env.RetrieveHandler, maxClients)).Methods("GET")
 
 	// define handler for unhandled paths
 	var api = router.PathPrefix("/api").Subrouter()

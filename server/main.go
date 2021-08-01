@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-
 	apihttp "historical-data-series/api/http"
 	servicedb "historical-data-series/api/service/db"
 	serverdb "historical-data-series/server/db"
@@ -50,9 +48,6 @@ func main() {
 			DataPoints: servicedb.NewDataPointService(db, dbCtx),
 		}
 	)
-
-	// TODO: remove after testing
-	db.Collection("dataPoints").DeleteMany(dbCtx, bson.D{})
 
 	// setup server
 	server := &http.Server{
